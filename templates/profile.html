@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Профиль - CodeLaft Store{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <div class="profile-header">
+        <div class="profile-avatar">
+            <i class="fas fa-user-circle"></i>
+        </div>
+        <div class="profile-info">
+            <h1>{{ current_user.username }}</h1>
+            <p>{{ current_user.email }}</p>
+            <p class="join-date">Участник с {{ current_user.created_at.strftime('%d.%m.%Y') }}</p>
+        </div>
+    </div>
+    
+    <div class="profile-sections">
+        <div class="profile-section">
+            <h2><i class="fas fa-shopping-bag"></i> Мои покупки</h2>
+            
+            {% if user_products %}
+            <div class="purchases-grid">
+                {% for user_product in user_products %}
+                <div class="purchase-card">
+                    <h3>{{ user_product.product.name }}</h3>
+                    <p>{{ user_product.product.description[:50] }}...</p>
+                    
+                    <div class="purchase-meta">
+                        {% if user_product.product.price_type == 'subscription' and user_product.expires_at %}
+                            <span class="status {% if user_product.expires_at > now %}active{% else %}expired{% endif %}">
+                                {% if user_product.expires_at > now %}
+                                    <i class="fas fa-check-circle"></i> Активна до {{ user_product.expires_at.strftime('%d.%m.%Y') }}
+                                {% else %}
+                                    <i class="fas fa-times-circle"></i> Истекла
+                                {% endif %}
+                            </span>
+                        {% else %}
+                            <span class="status active">
+                                <i class="fas fa-check-circle"></i> Постоянный доступ
+                            </span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="purchase-actions">
+                        <button class="btn btn-small" onclick="alert('Доступ к продукту предоставлен')">Получить доступ</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-box-open"></i>
+                <h3>У вас пока нет покупок</h3>
+                <p>Перейдите в каталог, чтобы выбрать интересующие вас товары</p>
+                <a href="{{ url_for('index') }}" class="btn btn-primary">Смотреть товары</a>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="profile-section">
+            <h2><i class="fas fa-history"></i> История заказов</h2>
+            
+            {% if orders %}
+            <div class="orders-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID заказа</th>
+                            <th>Товар</th>
+                            <th>Сумма</th>
+                            <th>Статус</th>
+                            <th>Дата</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr>
+                            <td>{{ order.order_id }}</td>
+                            <td>{{ order.product.name }}</td>
+                            <td>{{ order.amount }} USDT</td>
+                            <td>
+                                <span class="status-badge status-{{ order.status }}">
+                                    {% if order.status == 'paid' %}Оплачен
+                                    {% elif order.status == 'pending' %}Ожидание
+                                    {% else %}Отменен{% endif %}
+                                </span>
+                            </td>
+                            <td>{{ order.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="no-data">История заказов пуста</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

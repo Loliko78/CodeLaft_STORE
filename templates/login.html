@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Вход - CodeLaft Store{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <h2 class="auth-title">Вход в аккаунт</h2>
+        
+        <form method="POST" action="{{ url_for('login') }}">
+            <div class="form-group">
+                <label for="username">Имя пользователя</label>
+                <div class="input-with-icon">
+                    <i class="fas fa-user"></i>
+                    <input type="text" id="username" name="username" required placeholder="Введите имя пользователя">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Пароль</label>
+                <div class="input-with-icon">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="password" name="password" required placeholder="Введите пароль">
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-block">Войти</button>
+        </form>
+        
+        <div class="auth-links">
+            <p>Нет аккаунта? <a href="{{ url_for('register') }}">Зарегистрируйтесь</a></p>
+            <p><a href="{{ url_for('index') }}">Вернуться на главную</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

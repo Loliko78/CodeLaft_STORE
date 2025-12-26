@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}CodeLaft Store - Главная{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <div class="hero-content">
+        <h1>Добро пожаловать в <span class="gradient-text">CodeLaft Store</span></h1>
+        <p>Покупайте лучшие программы и скрипты с оплатой USDT TRC20</p>
+        {% if not current_user.is_authenticated %}
+            <div class="hero-buttons">
+                <a href="{{ url_for('register') }}" class="btn btn-primary">Начать сейчас</a>
+                <a href="#products" class="btn btn-secondary">Смотреть товары</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<section id="products" class="products-section">
+    <h2 class="section-title">Наши товары</h2>
+    
+    <div class="products-grid">
+        {% for product in products %}
+        <div class="product-card">
+            {% if product.image_filename %}
+            <img src="{{ url_for('download_file', filename=product.image_filename) }}" alt="{{ product.name }}">
+            {% else %}
+            <div class="product-image-placeholder">
+                <i class="fas fa-box"></i>
+            </div>
+            {% endif %}
+            
+            <div class="product-info">
+                <h3>{{ product.name }}</h3>
+                <p class="product-description">{{ product.description[:100] }}{% if product.description|length > 100 %}...{% endif %}</p>
+                
+                <div class="product-meta">
+                    <span class="price">{{ product.price }} USDT</span>
+                    <span class="type {{ product.price_type }}">
+                        {% if product.price_type == 'subscription' %}
+                            <i class="fas fa-sync-alt"></i> Подписка
+                        {% else %}
+                            <i class="fas fa-shopping-cart"></i> Одноразово
+                        {% endif %}
+                    </span>
+                </div>
+                
+                <div class="product-actions">
+                    <a href="{{ url_for('product_detail', product_id=product.id) }}" class="btn btn-small">Подробнее</a>
+                    {% if current_user.is_authenticated %}
+                        <a href="{{ url_for('buy_product', product_id=product.id) }}" class="btn btn-small btn-primary">Купить</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    {% if not products %}
+    <div class="empty-state">
+        <i class="fas fa-box-open"></i>
+        <h3>Товаров пока нет</h3>
+        <p>Скоро здесь появятся новые продукты!</p>
+    </div>
+    {% endif %}
+</section>
+
+<section class="features-section">
+    <div class="features-grid">
+        <div class="feature">
+            <div class="feature-icon">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <h3>Безопасность</h3>
+            <p>Все платежи через защищенную криптовалюту USDT TRC20</p>
+        </div>
+        
+        <div class="feature">
+            <div class="feature-icon">
+                <i class="fas fa-bolt"></i>
+            </div>
+            <h3>Мгновенная доставка</h3>
+            <p>Товары доступны сразу после оплаты</p>
+        </div>
+        
+        <div class="feature">
+            <div class="feature-icon">
+                <i class="fas fa-headset"></i>
+            </div>
+            <h3>Поддержка</h3>
+            <p>Помощь в любое время через Telegram</p>
+        </div>
+    </div>
+</section>
+{% endblock %}

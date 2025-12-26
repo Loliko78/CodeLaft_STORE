@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Добавить промокод - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-form-container">
+    <h1 class="admin-title"><i class="fas fa-tag"></i> Добавить промокод</h1>
+    
+    <form method="POST" action="{{ url_for('add_promocode') }}" class="promocode-form">
+        <div class="form-grid">
+            <div class="form-section">
+                <h2>Основная информация</h2>
+                
+                <div class="form-group">
+                    <label for="code">Код промокода *</label>
+                    <input type="text" id="code" name="code" required 
+                           placeholder="SUMMER2024" style="text-transform: uppercase;">
+                    <small class="form-help">Только заглавные буквы и цифры</small>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="discount_type">Тип скидки *</label>
+                        <select id="discount_type" name="discount_type" required>
+                            <option value="percentage">Процентная (%)</option>
+                            <option value="fixed">Фиксированная (USDT)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="discount_value">Значение скидки *</label>
+                        <input type="number" id="discount_value" name="discount_value" 
+                               step="0.01" min="0" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="product_id">Применить к товару</label>
+                    <select id="product_id" name="product_id">
+                        <option value="all">Все товары</option>
+                        {% for product in products %}
+                        <option value="{{ product.id }}">{{ product.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="usage_limit">Лимит использований</label>
+                    <input type="number" id="usage_limit" name="usage_limit" 
+                           value="1" min="0">
+                    <small class="form-help">0 = безлимитно</small>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2>Срок действия</h2>
+                
+                <div class="form-group">
+                    <label for="valid_from">Действует с</label>
+                    <input type="datetime-local" id="valid_from" name="valid_from" 
+                        value="{{ now.strftime('%Y-%m-%dT%H:%M') }}">
+                </div>
+                
+                <div class="form-group">
+                    <label for="valid_until">Действует до</label>
+                    <input type="datetime-local" id="valid_until" name="valid_until">
+                    <small class="form-help">Оставьте пустым для бессрочного действия</small>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="is_active" value="true" checked>
+                        Активен
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-large">
+                <i class="fas fa-save"></i> Сохранить промокод
+            </button>
+            <a href="{{ url_for('admin_panel') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Отмена
+            </a>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const discountType = document.getElementById('discount_type');
+    const discountValue = document.getElementById('discount_value');
+    
+    function updateDiscountPlaceholder() {
+        if (discountType.value === 'percentage') {
+            discountValue.placeholder = 'Например: 20';
+            discountValue.max = 100;
+        } else {
+            discountValue.placeholder = 'Например: 10';
+            discountValue.max = null;
+        }
+    }
+    
+    discountType.addEventListener('change', updateDiscountPlaceholder);
+    updateDiscountPlaceholder();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CodeLaft Store{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="{{ url_for('index') }}" class="logo">
+                <i class="fas fa-code"></i> CodeLaft Store
+            </a>
+            <div class="nav-menu">
+                <a href="{{ url_for('index') }}">Главная</a>
+                {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('profile') }}">Профиль</a>
+                    {% if current_user.is_admin %}
+                        <a href="{{ url_for('admin_panel') }}">Админ-панель</a>
+                    {% endif %}
+                    <a href="{{ url_for('logout') }}">Выйти</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}">Войти</a>
+                    <a href="{{ url_for('register') }}">Регистрация</a>
+                {% endif %}
+                <a href="{{ url_for('privacy') }}">Конфиденциальность</a>
+            </div>
+            <div class="nav-user">
+                {% if current_user.is_authenticated %}
+                    <span><i class="fas fa-user"></i> {{ current_user.username }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-section">
+                <h3><i class="fas fa-code"></i> CodeLaft Store</h3>
+                <p>Продажа качественного программного обеспечения через криптовалюту</p>
+            </div>
+            <div class="footer-section">
+                <h3>Контакты</h3>
+                <p>Поддержка: support@codelaft.store</p>
+                <p>Оплата: USDT TRC20</p>
+            </div>
+            <div class="footer-section">
+                <h3>Безопасность</h3>
+                <p>Все транзакции защищены</p>
+                <p>Конфиденциальность гарантирована</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2024 CodeLaft Store. Все права защищены.</p>
+        </div>
+    </footer>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Auto-hide alerts
+            setTimeout(function() {
+                $('.alert').fadeOut('slow');
+            }, 5000);
+        });
+    </script>
+</body>
+</html>

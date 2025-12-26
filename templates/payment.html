@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Оплата - CodeLaft Store{% endblock %}
+
+{% block content %}
+<div class="payment-container">
+    <div class="payment-card">
+        <div class="payment-header">
+            <h1><i class="fas fa-wallet"></i> Оплата USDT TRC20</h1>
+            <p class="order-id">Заказ #{{ order.order_id }}</p>
+        </div>
+        
+        <div class="payment-details">
+            <div class="payment-item">
+                <span>Сумма к оплате:</span>
+                <strong class="payment-amount">{{ order.amount }} USDT</strong>
+            </div>
+            
+            <div class="payment-item">
+                <span>Товар:</span>
+                <strong>{{ product.name }}</strong>
+            </div>
+            
+            <div class="wallet-address">
+                <h3>Адрес кошелька:</h3>
+                <div class="address-box">
+                    <code id="walletAddress">{{ wallet }}</code>
+                    <button class="btn-copy" onclick="copyToClipboard('{{ wallet }}')">
+                        <i class="fas fa-copy"></i> Копировать
+                    </button>
+                </div>
+            </div>
+            
+            <div class="payment-instructions">
+                <h3>Инструкция по оплате:</h3>
+                <ol>
+                    <li>Откройте ваш крипто-кошелек (Trust Wallet, Binance и т.д.)</li>
+                    <li>Выберите USDT (TRC20 сеть)</li>
+                    <li>Вставьте скопированный адрес получателя</li>
+                    <li>Введите точную сумму: <strong>{{ order.amount }} USDT</strong></li>
+                    <li>Отправьте транзакцию</li>
+                    <li>Дождитесь подтверждения сети (обычно 1-2 минуты)</li>
+                    <li>Вернитесь на эту страницу и нажмите "Подтвердить оплату"</li>
+                </ol>
+                
+                <div class="warning-box">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p><strong>Важно:</strong> Отправляйте точную сумму. При отправке другой суммы заказ не будет подтвержден автоматически.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="payment-actions">
+            <form method="POST" action="{{ url_for('confirm_payment', order_id=order.order_id) }}">
+                <button type="submit" class="btn btn-primary btn-large">
+                    <i class="fas fa-check-circle"></i> Я оплатил, подтвердить
+                </button>
+            </form>
+            
+            <a href="{{ url_for('buy_product', product_id=product.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Назад
+            </a>
+            
+            <div class="payment-timer">
+                <p>Заказ будет отменен через: <span id="timer">30:00</span></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        alert('Адрес скопирован в буфер обмена!');
+    }, function(err) {
+        console.error('Ошибка копирования: ', err);
+    });
+}
+
+// Timer for order expiration
+let timeLeft = 30 * 60; // 30 minutes in seconds
+const timerElement = document.getElementById('timer');
+
+function updateTimer() {
+    const minutes = Math.floor(timeLeft / 60);
+    const seconds = timeLeft % 60;
+    timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    
+    if (timeLeft > 0) {
+        timeLeft--;
+        setTimeout(updateTimer, 1000);
+    } else {
+        timerElement.textContent = '00:00';
+        timerElement.style.color = '#ff4757';
+    }
+}
+
+updateTimer();
+</script>
+{% endblock %}

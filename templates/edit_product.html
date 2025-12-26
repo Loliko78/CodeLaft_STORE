@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Добавить товар - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-form-container">
+    <h1 class="admin-title"><i class="fas fa-plus-circle"></i> Добавить новый товар</h1>
+    
+    <form method="POST" action="{{ url_for('add_product') }}" enctype="multipart/form-data" class="product-form">
+        <div class="form-grid">
+            <div class="form-section">
+                <h2>Основная информация</h2>
+                
+                <div class="form-group">
+                    <label for="name">Название товара *</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="description">Описание товара *</label>
+                    <textarea id="description" name="description" rows="6" required></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="price">Цена (USDT) *</label>
+                    <input type="number" id="price" name="price" step="0.01" min="0" required>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="price_type">Тип цены *</label>
+                        <select id="price_type" name="price_type" required>
+                            <option value="one_time">Единоразовая покупка</option>
+                            <option value="subscription">Подписка</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="subscription_days_group" style="display: none;">
+                        <label for="subscription_days">Дней подписки</label>
+                        <input type="number" id="subscription_days" name="subscription_days" value="30" min="1">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="quantity">Количество (0 = безлимитно)</label>
+                    <input type="number" id="quantity" name="quantity" value="1" min="0">
+                </div>
+                
+                <div class="form-group">
+                    <label for="image">Изображение товара</label>
+                    <input type="file" id="image" name="image" accept="image/*">
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2>Поля формы заказа</h2>
+                <p class="form-help">Определите, какие данные должен предоставить покупатель</p>
+                
+                <div id="form-fields-container">
+                    <div class="form-field-template">
+                        <div class="form-field-row">
+                            <div class="form-group">
+                                <label>Название поля</label>
+                                <input type="text" name="field_name[]" placeholder="Например: telegram_username">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Тип поля</label>
+                                <select name="field_type[]" class="field-type-select">
+                                    <option value="text">Текст</option>
+                                    <option value="email">Email</option>
+                                    <option value="textarea">Многострочный текст</option>
+                                    <option value="file">Файл</option>
+                                    <option value="select">Выпадающий список</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Обязательное</label>
+                                <select name="field_required[]">
+                                    <option value="true">Да</option>
+                                    <option value="false">Нет</option>
+                                </select>
+                            </div>
+                            
+                            <button type="button" class="btn btn-danger remove-field" onclick="removeField(this)">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="button" class="btn btn-secondary" onclick="addField()">
+                    <i class="fas fa-plus"></i> Добавить поле
+                </button>
+            </div>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-large">
+                <i class="fas fa-save"></i> Сохранить товар
+            </button>
+            <a href="{{ url_for('admin_panel') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Отмена
+            </a>
+        </div>
+    </form>
+</div>
+
+<script>
+// Show/hide subscription days based on price type
+document.getElementById('price_type').addEventListener('change', function() {
+    const subDaysGroup = document.getElementById('subscription_days_group');
+    if (this.value === 'subscription') {
+        subDaysGroup.style.display = 'block';
+    } else {
+        subDaysGroup.style.display = 'none';
+    }
+});
+
+// Dynamic form fields
+function addField() {
+    const container = document.getElementById('form-fields-container');
+    const template = container.querySelector('.form-field-template');
+    const newField = template.cloneNode(true);
+    newField.classList.remove('form-field-template');
+    newField.style.display = 'block';
+    container.appendChild(newField);
+}
+
+function removeField(button) {
+    const fieldRow = button.closest('.form-field-row');
+    if (fieldRow) {
+        fieldRow.remove();
+    }
+}
+
+// Initialize with one field
+addField();
+</script>
+{% endblock %}

@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }} - CodeLaft Store{% endblock %}
+
+{% block content %}
+<div class="product-detail">
+    <div class="product-gallery">
+        {% if product.image_filename %}
+        <div class="product-main-image">
+            <img src="{{ url_for('download_file', filename=product.image_filename) }}" alt="{{ product.name }}">
+        </div>
+        {% else %}
+        <div class="product-image-placeholder large">
+            <i class="fas fa-box"></i>
+        </div>
+        {% endif %}
+        
+        <!-- Активные промокоды -->
+        {% if promocodes %}
+        <div class="promocode-banner">
+            <div class="promocode-header">
+                <i class="fas fa-tag"></i>
+                <h3>Активные промокоды</h3>
+            </div>
+            <div class="promocode-list">
+                {% for promocode in promocodes %}
+                <div class="promocode-item">
+                    <div class="promocode-code">
+                        <strong>{{ promocode.code }}</strong>
+                        <span class="discount-badge">
+                            {% if promocode.discount_type == 'percentage' %}
+                                -{{ promocode.discount_value }}%
+                            {% else %}
+                                -{{ promocode.discount_value }} USDT
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="promocode-info">
+                        {% if promocode.usage_limit > 0 %}
+                            <small>Осталось: {{ promocode.usage_limit - promocode.used_count }} использований</small>
+                        {% else %}
+                            <small>Безлимитное использование</small>
+                        {% endif %}
+                        {% if promocode.valid_until %}
+                            <small>Действует до: {{ promocode.valid_until.strftime('%d.%m.%Y') }}</small>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="product-info">
+        <div class="product-header">
+            <h1>{{ product.name }}</h1>
+            <div class="product-meta">
+                {% if active_promocode %}
+                <div class="price-with-discount">
+                    <span class="old-price">{{ product.price }} USDT</span>
+                    <span class="price-tag">{{ discounted_price }} USDT</span>
+                    <span class="discount-percent">
+                        -{{ ((product.price - discounted_price) / product.price * 100)|round|int }}%
+                    </span>
+                </div>
+                {% else %}
+                <span class="price-tag">{{ product.price }} USDT</span>
+                {% endif %}
+                
+                <span class="type-badge type-{{ product.price_type }}">
+                    {% if product.price_type == 'subscription' %}
+                        Подписка ({{ product.subscription_days }} дней)
+                    {% else %}
+                        Единоразовая покупка
+                    {% endif %}
+                </span>
+                
+                {% if product.quantity > 0 %}
+                    <span class="quantity-badge">Доступно: {{ product.quantity }}</span>
+                {% else %}
+                    <span class="quantity-badge out-of-stock">Нет в наличии</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="product-description-full">
+            <h3>Описание</h3>
+            <p>{{ product.description|safe }}</p>
+        </div>
+        
+        <!-- Рейтинг товара -->
+        <div class="product-rating">
+            <h3>Рейтинг товара</h3>
+            <div class="rating-summary">
+                <div class="rating-stars">
+                    {% for i in range(5) %}
+                        {% if i < avg_rating|int %}
+                            <i class="fas fa-star"></i>
+                        {% else %}
+                            <i class="far fa-star"></i>
+                        {% endif %}
+                    {% endfor %}
+                    <span class="rating-value">{{ avg_rating|round(1) }}</span>
+                    <span class="rating-count">({{ reviews|length }} отзывов)</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="product-features">
+            <h3>Особенности</h3>
+            <ul>
+                <li><i class="fas fa-check"></i> Мгновенная доставка после оплаты</li>
+                <li><i class="fas fa-check"></i> Поддержка через Telegram</li>
+                <li><i class="fas fa-check"></i> Безопасная оплата USDT TRC20</li>
+                {% if product.price_type == 'subscription' %}
+                <li><i class="fas fa-check"></i> Автопродление не требуется</li>
+                {% else %}
+                <li><i class="fas fa-check"></i> Пожизненный доступ</li>
+                {% endif %}
+            </ul>
+        </div>
+        
+        <div class="product-actions">
+            {% if current_user.is_authenticated %}
+                {% if product.quantity > 0 %}
+                    <a href="{{ url_for('buy_product', product_id=product.id) }}" class="btn btn-primary btn-large">
+                        <i class="fas fa-shopping-cart"></i> Купить сейчас
+                    </a>
+                {% else %}
+                    <button class="btn btn-large btn-disabled" disabled>Нет в наличии</button>
+                {% endif %}
+            {% else %}
+                <a href="{{ url_for('login') }}" class="btn btn-primary btn-large">
+                    <i class="fas fa-sign-in-alt"></i> Войти для покупки
+                </a>
+            {% endif %}
+            <a href="{{ url_for('index') }}" class="btn btn-secondary btn-large">
+                <i class="fas fa-arrow-left"></i> Назад к товарам
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Отзывы -->
+<div class="reviews-section">
+    <div class="reviews-header">
+        <h2><i class="fas fa-comments"></i> Отзывы покупателей</h2>
+        
+        {% if current_user.is_authenticated and not user_review %}
+            {% set has_purchased = namespace(value=false) %}
+            {% for user_product in current_user.user_products %}
+                {% if user_product.product_id == product.id and user_product.is_active %}
+                    {% set has_purchased.value = true %}
+                {% endif %}
+            {% endfor %}
+            
+            {% if has_purchased.value %}
+                <button class="btn btn-primary" onclick="showReviewForm()">
+                    <i class="fas fa-pen"></i> Написать отзыв
+                </button>
+            {% endif %}
+        {% endif %}
+    </div>
+    
+    <!-- Форма отзыва (скрыта по умолчанию) -->
+    {% if current_user.is_authenticated and not user_review %}
+        {% set has_purchased = namespace(value=false) %}
+        {% for user_product in current_user.user_products %}
+            {% if user_product.product_id == product.id and user_product.is_active %}
+                {% set has_purchased.value = true %}
+            {% endif %}
+        {% endfor %}
+        
+        {% if has_purchased.value %}
+            <div id="review-form" style="display: none;">
+                <form method="POST" action="{{ url_for('add_review', product_id=product.id) }}" class="review-form">
+                    <h3>Ваш отзыв</h3>
+                    <div class="form-group">
+                        <label>Ваша оценка</label>
+                        <div class="rating-input">
+                            {% for i in range(5, 0, -1) %}
+                            <input type="radio" id="star{{ i }}" name="rating" value="{{ i }}">
+                            <label for="star{{ i }}"><i class="fas fa-star"></i></label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="comment">Текст отзыва</label>
+                        <textarea id="comment" name="comment" rows="4" 
+                                  placeholder="Расскажите о вашем опыте использования..." required></textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Отправить отзыв</button>
+                        <button type="button" class="btn btn-secondary" onclick="hideReviewForm()">Отмена</button>
+                    </div>
+                </form>
+            </div>
+        {% endif %}
+    {% endif %}
+    
+    <!-- Список отзывов -->
+    {% if reviews %}
+    <div class="reviews-list">
+        {% for review in reviews %}
+        <div class="review-card">
+            <div class="review-header">
+                <div class="reviewer-info">
+                    <div class="reviewer-avatar">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <div>
+                        <strong>{{ review.user.username }}</strong>
+                        <div class="review-rating">
+                            {% for i in range(5) %}
+                                {% if i < review.rating %}
+                                    <i class="fas fa-star"></i>
+                                {% else %}
+                                    <i class="far fa-star"></i>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="review-date">
+                    {{ review.created_at.strftime('%d.%m.%Y') }}
+                </div>
+            </div>
+            
+            <div class="review-content">
+                <p>{{ review.comment }}</p>
+            </div>
+            
+            {% if current_user.id == review.user_id or current_user.is_admin %}
+            <div class="review-actions">
+                {% if current_user.id == review.user_id %}
+                <form method="POST" action="{{ url_for('delete_review', review_id=review.id) }}" 
+                      onsubmit="return confirm('Удалить отзыв?')">
+                    <button type="submit" class="btn btn-small btn-danger">
+                        <i class="fas fa-trash"></i> Удалить
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-reviews">
+        <i class="fas fa-comment-slash"></i>
+        <p>Пока нет отзывов. Будьте первым!</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function showReviewForm() {
+    document.getElementById('review-form').style.display = 'block';
+    window.scrollTo({
+        top: document.getElementById('review-form').offsetTop - 100,
+        behavior: 'smooth'
+    });
+}
+
+function hideReviewForm() {
+    document.getElementById('review-form').style.display = 'none';
+}
+
+// Рейтинг звезды
+document.querySelectorAll('.rating-input input').forEach(radio => {
+    radio.addEventListener('change', function() {
+        const rating = this.value;
+        const labels = document.querySelectorAll('.rating-input label');
+        labels.forEach((label, index) => {
+            if (5 - index <= rating) {
+                label.style.color = '#ffc107';
+            } else {
+                label.style.color = '#ccc';
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
