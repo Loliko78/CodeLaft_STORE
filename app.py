@@ -1355,7 +1355,58 @@ def create_admin():
 
 # Флаг для отслеживания инициализации
 _monitor_started = False
-
+@app.route('/confirm_payment/<order_id>', methods=['POST'])
+@login_required
+def confirm_payment(order_id):
+    """Ручное подтверждение оплаты пользователем (для случаев, когда автоматическая проверка не сработала)"""
+    order = Order.query.filter_by(order_id=order_id, user_id=current_user.id).first_or_404()
+    
+    # Проверяем оплату
+    result = TronPaymentVerifier.verify_payment(order, app.config['CRYPTO_WALLET'])
+    
+    if result['success']:
+        # Обновляем статус заказа
+        order.status = 'paid'
+        order.transaction_hash = result['transaction_hash']
+        
+        # Добавляем товар пользователю
+        user_product = UserProduct(
+            user_id=current_user.id,
+            product_id=order.product_id,
+            order_id=order.id,
+            expires_at=order.expires_at,
+            is_active=True
+        )
+        db.session.add(user_product)
+        
+        # Обновляем количество товара
+        product = order.product
+        if product.quantity > 0:
+            product.quantity -= order.quantity
+        
+        # Обновляем счетчик промокода
+        if order.promocode_id:
+            promocode = Promocode.query.get(order.promocode_id)
+            if promocode:
+                promocode.used_count += 1
+        
+        db.session.commit()
+        
+        # Отправляем уведомление в Telegram
+        send_telegram_message(order, current_user, product, order.form_data)
+        
+        flash('Оплата подтверждена! Товар добавлен в ваш аккаунт.', 'success')
+        return redirect(url_for('profile'))
+    
+    # Проверяем не истекло ли время ожидания оплаты
+    if order.payment_expires_at and datetime.utcnow() > order.payment_expires_at:
+        order.status = 'expired'
+        db.session.commit()
+        flash('Время оплаты истекло. Пожалуйста, создайте новый заказ.', 'error')
+        return redirect(url_for('product_detail', product_id=order.product_id))
+    
+    flash('Оплата не найдена. Если вы уже отправили средства, подождите несколько минут или проверьте правильность суммы и адреса.', 'warning')
+    return redirect(url_for('check_payment_status', order_id=order_id))
 @app.before_request
 def start_payment_monitor_once():
     global _monitor_started
