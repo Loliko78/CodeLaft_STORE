@@ -23,15 +23,22 @@
                 
                 <div class="form-group">
                     <label for="price">Цена (USDT) *</label>
-                    <input type="number" id="price" name="price" step="0.01" min="0" required>
+                    <input type="number" id="price" name="price" step="0.01" min="0" value="10.00" required>
                 </div>
+                
+                <div class="form-group">
+    <label for="original_price">Цена без скидки</label>
+    <input type="number" id="original_price" name="original_price" step="0.01" min="0" value="{{ product.price if product else '' }}">
+    <small class="form-help">Оставьте пустым, чтобы использовать цену по умолчанию</small>
+</div>
                 
                 <div class="form-row">
                     <div class="form-group">
                         <label for="price_type">Тип цены *</label>
-                        <select id="price_type" name="price_type" required>
+                        <select id="price_type" name="price_type" required onchange="togglePriceFields()">
                             <option value="one_time">Единоразовая покупка</option>
                             <option value="subscription">Подписка</option>
+                            <option value="trial">Тестовый период</option>
                         </select>
                     </div>
                     
@@ -39,6 +46,17 @@
                         <label for="subscription_days">Дней подписки</label>
                         <input type="number" id="subscription_days" name="subscription_days" value="30" min="1">
                     </div>
+                    
+                    <div class="form-group" id="trial_days_group" style="display: none;">
+                        <label for="trial_days">Дней тестового периода</label>
+                        <input type="number" id="trial_days" name="trial_days" value="7" min="1">
+                    </div>
+                </div>
+                
+                <div class="form-group" id="max_trial_group" style="display: none;">
+                    <label for="max_trial_per_user">Макс. тестовых периодов на пользователя</label>
+                    <input type="number" id="max_trial_per_user" name="max_trial_per_user" value="1" min="1">
+                    <small class="form-help">Сколько раз пользователь может получить тестовый период</small>
                 </div>
                 
                 <div class="form-group">
@@ -108,15 +126,34 @@
 </div>
 
 <script>
-// Show/hide subscription days based on price type
-document.getElementById('price_type').addEventListener('change', function() {
+// Show/hide fields based on price type
+function togglePriceFields() {
+    const priceType = document.getElementById('price_type').value;
     const subDaysGroup = document.getElementById('subscription_days_group');
-    if (this.value === 'subscription') {
+    const trialDaysGroup = document.getElementById('trial_days_group');
+    const maxTrialGroup = document.getElementById('max_trial_group');
+    const priceInput = document.getElementById('price');
+    
+    // Hide all groups
+    subDaysGroup.style.display = 'none';
+    trialDaysGroup.style.display = 'none';
+    maxTrialGroup.style.display = 'none';
+    
+    // Show needed groups
+    if (priceType === 'subscription') {
         subDaysGroup.style.display = 'block';
+        priceInput.value = priceInput.value || '10.00';
+        priceInput.readOnly = false;
+    } else if (priceType === 'trial') {
+        trialDaysGroup.style.display = 'block';
+        maxTrialGroup.style.display = 'block';
+        priceInput.value = '0.00';
+        priceInput.readOnly = true;
     } else {
-        subDaysGroup.style.display = 'none';
+        priceInput.readOnly = false;
+        priceInput.value = priceInput.value || '10.00';
     }
-});
+}
 
 // Dynamic form fields
 function addField() {
@@ -137,5 +174,7 @@ function removeField(button) {
 
 // Initialize with one field
 addField();
+// Initialize price fields
+document.addEventListener('DOMContentLoaded', togglePriceFields);
 </script>
 {% endblock %}

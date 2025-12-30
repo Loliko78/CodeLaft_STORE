@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Тестовый период - CodeLaft Store{% endblock %}
+
+{% block content %}
+<div class="checkout-container">
+    <h1 class="checkout-title">Активация тестового периода</h1>
+    
+    <div class="checkout-grid">
+        <div class="checkout-form">
+            <h2>Данные для активации</h2>
+            
+            <form method="POST" enctype="multipart/form-data">
+                <div class="order-summary">
+                    <h3>{{ product.name }}</h3>
+                    <p class="order-price"><strong>БЕСПЛАТНО</strong></p>
+                    <p class="order-type">
+                        <i class="fas fa-clock"></i> Тестовый период на {{ product.trial_days }} дней
+                    </p>
+                    <div class="trial-info">
+                        <p><i class="fas fa-info-circle"></i> Тестовый период доступен 1 раз на аккаунт</p>
+                        <p><i class="fas fa-calendar-check"></i> Доступно до: {{ (now + timedelta(days=product.trial_days)).strftime('%d.%m.%Y') }}</p>
+                    </div>
+                </div>
+                
+                {% if form_fields %}
+                <div class="form-fields">
+                    <h3>Заполните данные</h3>
+                    {% for field in form_fields %}
+                    <div class="form-group">
+                        <label for="{{ field.name }}">{{ field.label }}{% if field.required %} *{% endif %}</label>
+                        
+                        {% if field.type == 'text' %}
+                            <input type="text" 
+                                   id="{{ field.name }}" 
+                                   name="{{ field.name }}" 
+                                   {% if field.required %}required{% endif %}
+                                   placeholder="Введите {{ field.label|lower }}">
+                        
+                        {% elif field.type == 'email' %}
+                            <input type="email" 
+                                   id="{{ field.name }}" 
+                                   name="{{ field.name }}" 
+                                   {% if field.required %}required{% endif %}
+                                   placeholder="email@example.com">
+                        
+                        {% elif field.type == 'textarea' %}
+                            <textarea id="{{ field.name }}" 
+                                      name="{{ field.name }}" 
+                                      {% if field.required %}required{% endif %}
+                                      rows="4"
+                                      placeholder="Введите {{ field.label|lower }}"></textarea>
+                        
+                        {% elif field.type == 'file' %}
+                            <input type="file" 
+                                   id="{{ field.name }}" 
+                                   name="{{ field.name }}" 
+                                   {% if field.required %}required{% endif %}
+                                   accept=".jpg,.jpeg,.png,.pdf,.txt,.zip,.rar">
+                        
+                        {% elif field.type == 'select' %}
+                            <select id="{{ field.name }}" 
+                                    name="{{ field.name }}" 
+                                    {% if field.required %}required{% endif %}>
+                                <option value="">Выберите вариант</option>
+                                {% if field.options %}
+                                    {% for option in field.options.split(',') %}
+                                    <option value="{{ option.strip() }}">{{ option.strip() }}</option>
+                                    {% endfor %}
+                                {% endif %}
+                            </select>
+                        
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="no-fields-notice">
+                    <p>Для активации тестового периода не требуется дополнительная информация.</p>
+                </div>
+                {% endif %}
+                
+                <div class="checkout-actions">
+                    <button type="submit" class="btn btn-primary btn-large">
+                        <i class="fas fa-play-circle"></i> Активировать тестовый период
+                    </button>
+                    <a href="{{ url_for('product_detail', product_id=product.id) }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Назад
+                    </a>
+                </div>
+            </form>
+        </div>
+        
+        <div class="checkout-sidebar">
+            <div class="sidebar-card">
+                <h3>Информация о тестовом периоде</h3>
+                <div class="sidebar-item">
+                    <span>Товар:</span>
+                    <strong>{{ product.name }}</strong>
+                </div>
+                <div class="sidebar-item">
+                    <span>Стоимость:</span>
+                    <strong class="free-text">БЕСПЛАТНО</strong>
+                </div>
+                <div class="sidebar-item">
+                    <span>Длительность:</span>
+                    <strong>{{ product.trial_days }} дней</strong>
+                </div>
+                <div class="sidebar-item">
+                    <span>Доступ:</span>
+                    <strong>Мгновенно</strong>
+                </div>
+                
+                <div class="trial-benefits">
+                    <h4>Преимущества тестового периода:</h4>
+                    <ul>
+                        <li><i class="fas fa-check"></i> Полный доступ ко всем функциям</li>
+                        <li><i class="fas fa-check"></i> Техническая поддержка</li>
+                        <li><i class="fas fa-check"></i> Возможность покупки после окончания</li>
+                        <li><i class="fas fa-check"></i> Без обязательств</li>
+                    </ul>
+                </div>
+                
+                <div class="warning-box">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p><strong>Важно:</strong> Тестовый период можно активировать только 1 раз на аккаунт.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

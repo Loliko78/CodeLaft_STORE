@@ -2,7 +2,7 @@ import os
 from datetime import timedelta
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-here-change-in-production'
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'azazelik-code-store-codelaft'
     SQLALCHEMY_DATABASE_URI = 'sqlite:///database.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = 'uploads'
@@ -13,7 +13,7 @@ class Config:
     TELEGRAM_CHAT_ID = '564049757'
     
     # Crypto settings
-    CRYPTO_WALLET = 'TKSrgwqH5r74AHvzm2acEVwxiNbtGGmv3T'
+    CRYPTO_WALLET = 'TUgx6uehAb6wi2i798CetNgu1JHyhGCJxh'
     TRON_API_URL = 'https://api.trongrid.io'  # Основной API
     TRON_API_URL_2 = 'https://api.shasta.trongrid.io'  # Резервный API
     

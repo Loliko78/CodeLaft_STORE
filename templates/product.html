@@ -56,7 +56,14 @@
         <div class="product-header">
             <h1>{{ product.name }}</h1>
             <div class="product-meta">
-                {% if active_promocode %}
+                {% if product.price_type == 'trial' %}
+                <div class="trial-price">
+                    <span class="price-tag free-text">БЕСПЛАТНО</span>
+                    <span class="trial-duration">
+                        <i class="fas fa-clock"></i> {{ product.trial_days }} дней
+                    </span>
+                </div>
+                {% elif active_promocode %}
                 <div class="price-with-discount">
                     <span class="old-price">{{ product.price }} USDT</span>
                     <span class="price-tag">{{ discounted_price }} USDT</span>
@@ -71,6 +78,8 @@
                 <span class="type-badge type-{{ product.price_type }}">
                     {% if product.price_type == 'subscription' %}
                         Подписка ({{ product.subscription_days }} дней)
+                    {% elif product.price_type == 'trial' %}
+                        Тестовый период
                     {% else %}
                         Единоразовая покупка
                     {% endif %}
@@ -82,6 +91,13 @@
                     <span class="quantity-badge out-of-stock">Нет в наличии</span>
                 {% endif %}
             </div>
+            
+            {% if product.price_type == 'trial' and current_user.is_authenticated and not can_get_trial %}
+            <div class="trial-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>{{ trial_message }}</p>
+            </div>
+            {% endif %}
         </div>
         
         <div class="product-description-full">
@@ -115,6 +131,8 @@
                 <li><i class="fas fa-check"></i> Безопасная оплата USDT TRC20</li>
                 {% if product.price_type == 'subscription' %}
                 <li><i class="fas fa-check"></i> Автопродление не требуется</li>
+                {% elif product.price_type == 'trial' %}
+                <li><i class="fas fa-check"></i> Бесплатный тест {{ product.trial_days }} дней</li>
                 {% else %}
                 <li><i class="fas fa-check"></i> Пожизненный доступ</li>
                 {% endif %}
@@ -122,7 +140,17 @@
         </div>
         
         <div class="product-actions">
-            {% if current_user.is_authenticated %}
+            {% if product.price_type == 'trial' and current_user.is_authenticated %}
+                {% if can_get_trial %}
+                    <a href="{{ url_for('buy_product', product_id=product.id) }}" class="btn btn-trial btn-large">
+                        <i class="fas fa-play-circle"></i> Получить тестовый период
+                    </a>
+                {% else %}
+                    <button class="btn btn-large btn-disabled" disabled>
+                        <i class="fas fa-info-circle"></i> {{ trial_message }}
+                    </button>
+                {% endif %}
+            {% elif current_user.is_authenticated %}
                 {% if product.quantity > 0 %}
                     <a href="{{ url_for('buy_product', product_id=product.id) }}" class="btn btn-primary btn-large">
                         <i class="fas fa-shopping-cart"></i> Купить сейчас

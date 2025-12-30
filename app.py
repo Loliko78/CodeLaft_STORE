@@ -51,12 +51,15 @@ class Product(db.Model):
     description = db.Column(db.Text, nullable=False)
     price = db.Column(db.Float, nullable=False)
     original_price = db.Column(db.Float)  # Цена без скидки
-    price_type = db.Column(db.String(20), nullable=False)  # 'one_time' or 'subscription'
+    price_type = db.Column(db.String(20), nullable=False)  # 'one_time' or 'subscription' or 'trial'
     subscription_days = db.Column(db.Integer, default=30)  # For subscription products
+    trial_days = db.Column(db.Integer, default=7)  # Для тестового периода
     quantity = db.Column(db.Integer, default=1)
     image_filename = db.Column(db.String(200))
     form_fields = db.Column(db.Text)  # JSON string with form fields
     is_active = db.Column(db.Boolean, default=True)
+    is_trial = db.Column(db.Boolean, default=False)  # Флаг тестового товара
+    max_trial_per_user = db.Column(db.Integer, default=1)  # Максимум тестовых периодов на пользователя
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Связь с отзывами
@@ -76,9 +79,9 @@ class Order(db.Model):
     discount_amount = db.Column(db.Float, default=0)  # Сумма скидки
     payment_type = db.Column(db.String(20), nullable=False)
     form_data = db.Column(db.Text)  # JSON string with form data
-    status = db.Column(db.String(20), default='pending')  # pending, paid, cancelled, expired
+    status = db.Column(db.String(20), default='pending')  # pending, paid, cancelled, expired, trial
     transaction_hash = db.Column(db.String(100))  # Хэш транзакции TRON
-    expires_at = db.Column(db.DateTime)  # Для подписок
+    expires_at = db.Column(db.DateTime)  # Для подписок и тестов
     payment_expires_at = db.Column(db.DateTime)  # Время истечения ожидания оплаты
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -91,8 +94,9 @@ class UserProduct(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
     order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=False)
-    expires_at = db.Column(db.DateTime)  # For subscriptions
+    expires_at = db.Column(db.DateTime)  # For subscriptions and trials
     is_active = db.Column(db.Boolean, default=True)
+    is_trial = db.Column(db.Boolean, default=False)  # Флаг тестового периода
     
     user = db.relationship('User', backref=db.backref('user_products', lazy=True))
     product = db.relationship('Product')
@@ -273,19 +277,30 @@ def send_telegram_message(order, user, product, form_data):
         chat_id = app.config['TELEGRAM_CHAT_ID']
         
         # Format message
-        message = f"✅ ОПЛАЧЕН НОВЫЙ ЗАКАЗ!\n\n"
-        message += f"📦 Товар: {product.name}\n"
-        message += f"💰 Сумма: {order.amount} USDT"
-        
-        if order.discount_amount > 0:
-            message += f" (скидка: -{order.discount_amount} USDT)\n"
+        if order.status == 'trial':
+            message = f"🆓 НОВЫЙ ТЕСТОВЫЙ ПЕРИОД!\n\n"
         else:
-            message += "\n"
+            message = f"✅ ОПЛАЧЕН НОВЫЙ ЗАКАЗ!\n\n"
+        
+        message += f"📦 Товар: {product.name}\n"
+        
+        if order.status != 'trial':
+            message += f"💰 Сумма: {order.amount} USDT"
+            
+            if order.discount_amount > 0:
+                message += f" (скидка: -{order.discount_amount} USDT)\n"
+            else:
+                message += "\n"
+        else:
+            message += f"💰 Тип: Тестовый период ({product.trial_days} дней)\n"
             
         message += f"👤 Пользователь: {user.username} (ID: {user.id})\n"
         message += f"📧 Email: {user.email}\n"
         message += f"🆔 Заказ: {order.order_id}\n"
-        message += f"🔗 Транзакция: {order.transaction_hash or 'ожидает'}\n"
+        
+        if order.status != 'trial' and order.transaction_hash:
+            message += f"🔗 Транзакция: {order.transaction_hash}\n"
+        
         message += f"📅 Дата: {order.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
         message += f"🔢 Количество: {order.quantity}\n"
         
@@ -394,12 +409,37 @@ def validate_promocode(code, product_id=None, user_id=None):
     
     return {'valid': True, 'promocode': promocode}
 
+def can_user_get_trial(user_id, product_id):
+    """Проверить, может ли пользователь получить тестовый период"""
+    # Проверяем, не использовал ли уже пользователь тестовый период для этого товара
+    trial_orders = Order.query.filter(
+        Order.user_id == user_id,
+        Order.product_id == product_id,
+        Order.status == 'trial'
+    ).count()
+    
+    if trial_orders > 0:
+        return False, 'Вы уже использовали тестовый период для этого товара'
+    
+    # Проверяем общее количество тестовых периодов пользователя
+    product = Product.query.get(product_id)
+    if product:
+        user_trials = Order.query.filter(
+            Order.user_id == user_id,
+            Order.status == 'trial'
+        ).count()
+        
+        if user_trials >= product.max_trial_per_user:
+            return False, f'Вы использовали максимальное количество тестовых периодов ({product.max_trial_per_user})'
+    
+    return True, ''
+
 # Routes
 @app.route('/')
 def index():
     products = Product.query.filter_by(is_active=True).all()
     
-    # Добавляем информацию о скидках
+    # Добавляем информацию о скидках и тестовых периодах
     for product in products:
         # Находим активный промокод для товара
         promocode = Promocode.query.filter(
@@ -416,6 +456,14 @@ def index():
         else:
             product.has_discount = False
             product.discounted_price = product.price
+        
+        # Проверяем, может ли текущий пользователь получить тестовый период
+        if current_user.is_authenticated and product.price_type == 'trial':
+            can_trial, message = can_user_get_trial(current_user.id, product.id)
+            product.can_get_trial = can_trial
+            product.trial_message = message
+        else:
+            product.can_get_trial = False
     
     return render_template('index.html', products=products)
 
@@ -528,6 +576,12 @@ def product_detail(product_id):
         active_promocode = promocodes[0]
         discounted_price = calculate_discounted_price(product.price, active_promocode)
     
+    # Проверяем, может ли пользователь получить тестовый период
+    can_get_trial = False
+    trial_message = ''
+    if current_user.is_authenticated and product.price_type == 'trial':
+        can_get_trial, trial_message = can_user_get_trial(current_user.id, product_id)
+    
     return render_template('product.html', 
                          product=product,
                          reviews=reviews,
@@ -535,7 +589,9 @@ def product_detail(product_id):
                          user_review=user_review,
                          promocodes=promocodes,
                          discounted_price=discounted_price,
-                         active_promocode=active_promocode)
+                         active_promocode=active_promocode,
+                         can_get_trial=can_get_trial,
+                         trial_message=trial_message)
 
 @app.route('/add_review/<int:product_id>', methods=['POST'])
 @login_required
@@ -607,6 +663,80 @@ def delete_review(review_id):
 def buy_product(product_id):
     product = Product.query.get_or_404(product_id)
     
+    # Если товар тестовый, создаем заказ сразу
+    if product.price_type == 'trial':
+        # Проверяем, может ли пользователь получить тестовый период
+        can_trial, message = can_user_get_trial(current_user.id, product_id)
+        if not can_trial:
+            flash(message, 'error')
+            return redirect(url_for('product_detail', product_id=product_id))
+        
+        if request.method == 'POST':
+            # Handle form data for trial
+            form_data = {}
+            if product.form_fields:
+                fields = json.loads(product.form_fields)
+                for field in fields:
+                    field_name = field['name']
+                    if field['type'] == 'file':
+                        files = []
+                        file = request.files.get(field_name)
+                        if file and file.filename:
+                            filename = save_file(file)
+                            if filename:
+                                files.append({
+                                    'filename': filename,
+                                    'original_name': file.filename
+                                })
+                        form_data[field_name] = files
+                    else:
+                        form_data[field_name] = request.form.get(field_name, '')
+            
+            # Create trial order
+            order_id = f"TRIAL-{uuid.uuid4().hex[:8].upper()}"
+            order = Order(
+                order_id=order_id,
+                user_id=current_user.id,
+                product_id=product.id,
+                quantity=1,
+                amount=0,  # Бесплатно
+                original_amount=0,
+                discount_amount=0,
+                payment_type='trial',
+                form_data=json.dumps(form_data, ensure_ascii=False),
+                status='trial',
+                expires_at=datetime.utcnow() + timedelta(days=product.trial_days)
+            )
+            
+            db.session.add(order)
+            db.session.commit()
+            
+            # Add product to user's collection
+            user_product = UserProduct(
+                user_id=current_user.id,
+                product_id=product.id,
+                order_id=order.id,
+                expires_at=order.expires_at,
+                is_active=True,
+                is_trial=True
+            )
+            db.session.add(user_product)
+            db.session.commit()
+            
+            # Send notification to Telegram
+            send_telegram_message(order, current_user, product, order.form_data)
+            
+            flash(f'Тестовый период активирован на {product.trial_days} дней!', 'success')
+            return redirect(url_for('profile'))
+        
+        # Display form for trial
+        form_fields = json.loads(product.form_fields) if product.form_fields else []
+        return render_template('buy_trial.html', 
+                             product=product, 
+                             form_fields=form_fields,
+                             now=datetime.utcnow())
+    
+    # Обычный товар (покупка или подписка)
     if request.method == 'POST':
         # Проверяем промокод
         promocode_input = request.form.get('promocode', '').strip()
@@ -691,6 +821,11 @@ def buy_product(product_id):
                          form_fields=form_fields,
                          promocodes=promocodes)
 
+# Context processor to make 'now' and 'timedelta' available in all templates
+@app.context_processor
+def inject_now():
+    return {'now': datetime.utcnow(), 'timedelta': timedelta}
+
 @app.route('/check_payment_status/<order_id>')
 @login_required
 def check_payment_status(order_id):
@@ -772,6 +907,7 @@ def admin_panel():
     # Статистика
     total_revenue = sum(order.amount for order in orders if order.status == 'paid')
     pending_orders = sum(1 for order in orders if order.status == 'pending')
+    trial_orders = sum(1 for order in orders if order.status == 'trial')
     total_users = len(users)
     
     return render_template('admin.html', 
@@ -782,6 +918,7 @@ def admin_panel():
                          reviews=reviews,
                          total_revenue=total_revenue,
                          pending_orders=pending_orders,
+                         trial_orders=trial_orders,
                          total_users=total_users)
 
 @app.route('/admin/add_product', methods=['GET', 'POST'])
@@ -794,10 +931,19 @@ def add_product():
         name = request.form.get('name')
         description = request.form.get('description')
         price = float(request.form.get('price'))
-        original_price = float(request.form.get('original_price', price))
+        
+        # Исправление для original_price (может быть пустым)
+        original_price_str = request.form.get('original_price')
+        if original_price_str and original_price_str.strip():
+            original_price = float(original_price_str)
+        else:
+            original_price = price
+        
         price_type = request.form.get('price_type')
         subscription_days = int(request.form.get('subscription_days', 30))
+        trial_days = int(request.form.get('trial_days', 7))
         quantity = int(request.form.get('quantity', 1))
+        max_trial_per_user = int(request.form.get('max_trial_per_user', 1))
         
         # Handle image upload
         image_filename = None
@@ -828,9 +974,12 @@ def add_product():
             original_price=original_price,
             price_type=price_type,
             subscription_days=subscription_days,
+            trial_days=trial_days,
             quantity=quantity,
             image_filename=image_filename,
-            form_fields=json.dumps(form_fields, ensure_ascii=False)
+            form_fields=json.dumps(form_fields, ensure_ascii=False),
+            is_trial=(price_type == 'trial'),
+            max_trial_per_user=max_trial_per_user
         )
         
         db.session.add(product)
@@ -853,11 +1002,21 @@ def edit_product(product_id):
         product.name = request.form.get('name')
         product.description = request.form.get('description')
         product.price = float(request.form.get('price'))
-        product.original_price = float(request.form.get('original_price', product.price))
+        
+        # Исправление для original_price (может быть пустым)
+        original_price_str = request.form.get('original_price')
+        if original_price_str and original_price_str.strip():
+            product.original_price = float(original_price_str)
+        else:
+            product.original_price = product.price
+        
         product.price_type = request.form.get('price_type')
         product.subscription_days = int(request.form.get('subscription_days', 30))
+        product.trial_days = int(request.form.get('trial_days', 7))
         product.quantity = int(request.form.get('quantity', 1))
         product.is_active = request.form.get('is_active') == 'true'
+        product.is_trial = (request.form.get('price_type') == 'trial')
+        product.max_trial_per_user = int(request.form.get('max_trial_per_user', 1))
         
         # Handle image upload
         if 'image' in request.files:
@@ -902,6 +1061,13 @@ def delete_product(product_id):
     
     product = Product.query.get_or_404(product_id)
     
+    # Проверяем, есть ли заказы связанные с этим продуктом
+    orders_with_product = Order.query.filter_by(product_id=product_id).count()
+    
+    if orders_with_product > 0:
+        flash(f'Нельзя удалить товар, так как с ним связано {orders_with_product} заказов', 'error')
+        return redirect(url_for('admin_panel'))
+    
     # Delete image file
     if product.image_filename:
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], product.image_filename)
@@ -924,7 +1090,14 @@ def add_promocode():
         code = request.form.get('code').strip().upper()
         discount_type = request.form.get('discount_type')
         discount_value = float(request.form.get('discount_value'))
-        product_id = request.form.get('product_id')
+        
+        # Исправление для product_id (может быть 'all')
+        product_id_str = request.form.get('product_id')
+        if product_id_str and product_id_str != 'all':
+            product_id = int(product_id_str)
+        else:
+            product_id = None
+        
         usage_limit = int(request.form.get('usage_limit', 1))
         
         # Parse dates
@@ -943,7 +1116,7 @@ def add_promocode():
             code=code,
             discount_type=discount_type,
             discount_value=discount_value,
-            product_id=int(product_id) if product_id and product_id != 'all' else None,
+            product_id=product_id,
             usage_limit=usage_limit,
             valid_from=valid_from,
             valid_until=valid_until,
@@ -971,7 +1144,14 @@ def edit_promocode(promocode_id):
         promocode.code = request.form.get('code').strip().upper()
         promocode.discount_type = request.form.get('discount_type')
         promocode.discount_value = float(request.form.get('discount_value'))
-        promocode.product_id = request.form.get('product_id')
+        
+        # Исправление для product_id (может быть 'all')
+        product_id_str = request.form.get('product_id')
+        if product_id_str and product_id_str != 'all':
+            promocode.product_id = int(product_id_str)
+        else:
+            promocode.product_id = None
+        
         promocode.usage_limit = int(request.form.get('usage_limit', 1))
         promocode.is_active = request.form.get('is_active') == 'true'
         
@@ -1033,6 +1213,73 @@ def admin_orders():
     
     orders = Order.query.order_by(Order.created_at.desc()).all()
     return render_template('orders.html', orders=orders)
+
+@app.route('/admin/order_details/<int:order_id>')
+@login_required
+def order_details(order_id):
+    if not current_user.is_admin:
+        abort(403)
+    
+    order = Order.query.get_or_404(order_id)
+    
+    # Parse form data
+    form_data = {}
+    if order.form_data:
+        try:
+            form_data = json.loads(order.form_data)
+        except:
+            form_data = {'error': 'Не удалось прочитать данные формы'}
+    
+    return render_template('order_details.html', 
+                         order=order, 
+                         form_data=form_data,
+                         user=order.user,
+                         product=order.product)
+
+@app.route('/admin/manual_confirm/<int:order_id>')
+@login_required
+def manual_confirm(order_id):
+    if not current_user.is_admin:
+        abort(403)
+    
+    order = Order.query.get_or_404(order_id)
+    
+    if order.status == 'pending':
+        # Обновляем статус заказа
+        order.status = 'paid'
+        order.transaction_hash = f"MANUAL-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+        
+        # Добавляем товар пользователю
+        user_product = UserProduct(
+            user_id=order.user_id,
+            product_id=order.product_id,
+            order_id=order.id,
+            expires_at=order.expires_at,
+            is_active=True
+        )
+        db.session.add(user_product)
+        
+        # Обновляем количество товара
+        product = order.product
+        if product.quantity > 0:
+            product.quantity -= order.quantity
+        
+        # Обновляем счетчик промокода
+        if order.promocode_id:
+            promocode = Promocode.query.get(order.promocode_id)
+            if promocode:
+                promocode.used_count += 1
+        
+        db.session.commit()
+        
+        # Отправляем уведомление в Telegram
+        send_telegram_message(order, order.user, product, order.form_data)
+        
+        flash('Заказ успешно подтвержден вручную!', 'success')
+    else:
+        flash('Заказ уже обработан', 'warning')
+    
+    return redirect(url_for('admin_orders'))
 
 @app.route('/privacy')
 def privacy():
@@ -1118,57 +1365,7 @@ def start_payment_monitor_once():
         monitor_thread = threading.Thread(target=TronPaymentVerifier.start_payment_monitor, daemon=True)
         monitor_thread.start()
         print("Payment monitor started")
-@app.route('/confirm_payment/<order_id>', methods=['POST'])
-@login_required
-def confirm_payment(order_id):
-    order = Order.query.filter_by(order_id=order_id, user_id=current_user.id).first_or_404()
-    
-    # Проверяем оплату
-    result = TronPaymentVerifier.verify_payment(order, app.config['CRYPTO_WALLET'])
-    
-    if result['success']:
-        # Обновляем статус заказа
-        order.status = 'paid'
-        order.transaction_hash = result['transaction_hash']
-        
-        # Добавляем товар пользователю
-        user_product = UserProduct(
-            user_id=current_user.id,
-            product_id=order.product_id,
-            order_id=order.id,
-            expires_at=order.expires_at,
-            is_active=True
-        )
-        db.session.add(user_product)
-        
-        # Обновляем количество товара
-        product = order.product
-        if product.quantity > 0:
-            product.quantity -= order.quantity
-        
-        # Обновляем счетчик промокода
-        if order.promocode_id:
-            promocode = Promocode.query.get(order.promocode_id)
-            if promocode:
-                promocode.used_count += 1
-        
-        db.session.commit()
-        
-        # Отправляем уведомление в Telegram
-        send_telegram_message(order, current_user, product, order.form_data)
-        
-        flash('Оплата подтверждена! Товар добавлен в ваш профиль.', 'success')
-        return redirect(url_for('profile'))
-    else:
-        # Проверяем не истекло ли время ожидания оплаты
-        if order.payment_expires_at and datetime.utcnow() > order.payment_expires_at:
-            order.status = 'expired'
-            db.session.commit()
-            flash('Время оплаты истекло. Заказ отменен.', 'error')
-            return redirect(url_for('buy_product', product_id=order.product_id))
-        
-        flash('Оплата не найдена. Пожалуйста, убедитесь, что вы отправили точную сумму.', 'error')
-        return redirect(url_for('buy_product', product_id=order.product_id))
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
@@ -1176,4 +1373,4 @@ if __name__ == '__main__':
         # Также запускаем монитор сразу при старте
         monitor_thread = threading.Thread(target=TronPaymentVerifier.start_payment_monitor, daemon=True)
         monitor_thread.start()
-    app.run(debug=False, port=5000, threaded=True, host='0.0.0.0')
+    app.run(debug=True, port=5000, threaded=True)
